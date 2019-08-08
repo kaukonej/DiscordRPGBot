@@ -55,6 +55,8 @@ def readSavesFromFile():
             # Create the new player object, and add it to the player list
             newPlayer = Player()
             newPlayer.loadPlayer(id, int(exp), int(gold), pClass, int(vita), int(stre), int(defe), int(luck), int(levelUps))
+            newPlayer.setMovesAndElements()
+            newPlayer.revive()
             playerList.append(newPlayer)
         except:
             print("Could not load a save, skipping this save: " + fileA)
@@ -177,22 +179,33 @@ async def on_message(message):
         await channel.send(battleInfo)
 
     elif message.content.startswith('!attack'):
-        # Make sure !attack [target]
-        if (getNumOfWords(message.content) == 2):
+        msg = ''
+        # Make sure !attack [target] with [attackNum]
+        if (getNumOfWords(message.content) == 4):
             userInfo = getUserInfo(id)
             if not (userInfo.getID() == ''):
                 myEncounter = getEncounter(id)
+                moveSet = userInfo.getMoveset()
                 # PLAYER EXISTS AND HAS A VALID ENCOUNTER, SO ATTACK
                 if not (myEncounter.getOwner() == ''):
                     words = message.content.split()
+                    moveNum = int(words[3]) - 1
                     target = int(words[1]) - 1
                     #print ("target: " + words[1])
-                    if (myEncounter.getTargetHp(target) > 0):
+                    #print('words[2] = ' + words[2].lower() + ', targetHp = ' + myEncounter.getTargetHp(target)) + ', moveNum vs maxIndex'
+                    if (words[2].lower() == 'with' and myEncounter.getTargetHp(target) > 0 and moveNum <= userInfo.getMaxMoveIndex()):
+                        move = moveSet[moveNum]
+                        # Calculate the damage to do to the monster, and keep track of how much you actually do
                         preMonHp = myEncounter.getTargetHp(target)
-                        myEncounter.damageMonster(target, userInfo.getStr())
+                        damageToDo = math.ceil(move.getDamage() * (1 + (0.25 * (userInfo.getStr() - 1))))
+                        actualDamage = myEncounter.damageMonster(target, damageToDo, move)
                         afterMonHp = myEncounter.getTargetHp(target)
-                        actualDamage = preMonHp - afterMonHp
-                        msg = '{} did '.format(userMention) + str(actualDamage) + ' damage to ' + myEncounter.getMonName(target) + ', leaving it with ' + str(afterMonHp) + ' health.'
+                        doneDamage = preMonHp - afterMonHp
+                        if (actualDamage[1] >= 2.0):
+                            msg = msg + 'CRITICAL HIT! '
+                        elif (actualDamage[1] <= 0.5):
+                            msg = msg + 'The attack glanced off the monster. '
+                        msg = msg + '{} did '.format(userMention) + str(actualDamage[0]) + ' damage to ' + myEncounter.getMonName(target) + ', decreasing it\'s health by ' + str(doneDamage) + ', leaving it with ' + str(afterMonHp) + ' health.'
                         await channel.send(msg)
                         # PLAYER WINS ENCOUNTER
                         if (myEncounter.isEncounterOver()):
@@ -202,6 +215,7 @@ async def on_message(message):
                             userInfo.addExp(exp)
                             userInfo.addGold(gold)
                             msg = 'You won, {}! I will now add '.format(userMention) + str(exp) + ' experience and ' + str(gold) + ' gold to your account.'
+                            userInfo.revive()
                             if (currLevel < userInfo.getLevel()):
                                 msg = msg + '\nUser {} leveled up to level '.format(userMention) + str(userInfo.getLevel()) + '!'
                                 userInfo.incCanLevel()
@@ -209,12 +223,22 @@ async def on_message(message):
                             encounterList.remove(myEncounter)
                         # STILL IN ENCOUNTER
                         else:
-                            damageToPlayer = myEncounter.calcTurnDamage() - (myEncounter.monsLeft() * userInfo.getDef())
-                            if (damageToPlayer < 1):
-                                damageToPlayer = 1
-                            userInfo.takeDamage(damageToPlayer)
-                            msg = '{} took '.format(userMention) + str(damageToPlayer) + ' damage from monsters, and now has ' + str(userInfo.getCurrentHp()) + ' health.'
-                            await channel.send(msg)
+                            enemyMoves = myEncounter.getEnemyMoves()
+                            index = 0
+                            for move in enemyMoves:
+                                #print('Enemy move damage: ' + str(move.getDamage()))
+                                #hpBefore = userInfo.getCurrentHp()
+                                hpLost = userInfo.takeDamage(move.getDamage(), move.getElement())
+                                hpAfter = userInfo.getCurrentHp()
+                                #hpLost = hpBefore - hpAfter
+                                aliveMons = myEncounter.getAliveMons()
+                                msg = '{} took '.format(userMention) + str(hpLost) + ' ' + move.getElement() + ' damage from ' + aliveMons[index].getName() + ', and now has ' + str(hpAfter) + ' health.'
+                                await channel.send(msg)
+                                index = index + 1
+                            #damageToPlayer = myEncounter.calcTurnDamage() - (myEncounter.monsLeft() * userInfo.getDef())
+                            #if (damageToPlayer < 1):
+                            #    damageToPlayer = 1
+                            #userInfo.takeDamage(damageToPlayer)
                             # PLAYER LOSES ENCOUNTER
                             if (userInfo.isDead()):
                                 msg = 'Looks like you died, {}. I\'ll revive you, but you won\'t receive any rewards.'.format(userMention)
@@ -222,7 +246,7 @@ async def on_message(message):
                                 userInfo.revive()
                                 encounterList.remove(myEncounter)
                     else:
-                        msg = 'Looks like you\'re trying to hit a dead monster, {}. I mean, maybe that was intentional, but isn\'t that a bit cruel and irresponsible? You should attack one of the monsters that are still alive.'.format(userMention)
+                        msg = 'Something looks wrong with your syntax, {}, or you\'re trying to kill a dead monster. Check your command once more and try again.'.format(userMention)
                         await channel.send(msg)
                 # NO ENCOUNTER FOUND
                 else:
@@ -232,7 +256,7 @@ async def on_message(message):
                 msg = 'User {}\'s info could not be found'.format(userMention)
                 await channel.send(msg)
         else:
-            msg = 'The correct format for this command is "!attack [target#]", please try again.'
+            msg = 'The correct format for this command is "!attack [target#] with [move#]", please try again.'
             await channel.send(msg)
 
     elif message.content.startswith('!levelup'):
@@ -245,7 +269,7 @@ async def on_message(message):
                     msg = 'User {} leveled up their '.format(userMention)
                     if (skill == 'vitality'):
                         userInfo.levelUp(1)
-                        msg = msg + 'vitality to level ' + str(userInfo.getMaxHp() / 3) + '!'
+                        msg = msg + 'vitality to level ' + str(userInfo.getMaxHp() / 10) + '!'
                     elif (skill == 'strength'):
                         userInfo.levelUp(2)
                         msg = msg + 'strength to level ' + str(userInfo.getStr()) + '!'
@@ -267,6 +291,76 @@ async def on_message(message):
         else:
             msg = 'The correct format for this command is "!levelup [vitality/strength/resolve/fortune]", please try again.'
             await channel.send(msg)
+
+    elif message.content.startswith('!monsterpedia'):
+        msg = ('-----Orc-----\n' +
+            'Weak to: Air, Earth, Water, \n' +
+            'Resistant to: Fire, Electric,\n' +
+            '-----Dark Elf-----\n' +
+            'Weak to: Water, Air, Ice, \n' +
+            'Resistant to: Dark, Fire,\n' +
+            '-----Wizard-----\n' +
+            'Weak to: Earth, Ice, Fire,\n ' +
+            'Resistant to: Air, Water,\n' +
+            '-----Goblin-----\n' +
+            'Weak to: Water, Fire, Dark,\n ' +
+            'Resistant to: Earth, Electric,\n' +
+            '-----Warlord-----\n' +
+            'Weak to: Dark, Earth, Ice, \n' +
+            'Resistant to: Fire, Air,\n' +
+            '-----Lich-----\n' +
+            'Weak to: Dark, Fire, Electric,\n ' +
+            'Resistant to: Earth, Air,\n' +
+            '-----Skeleton-----\n' +
+            'Weak to: Electric, Water, Fire,\n ' +
+            'Resistant to: Dark, Earth,\n' +
+            '-----Demon-----\n' +
+            'Weak to: Fire, Air, Dark,\n ' +
+            'Resistant to: Electric, Water,\n' +
+            '-----Troll-----\n' +
+            'Weak to: Air, Water, Earth, \n' +
+            'Resistant to: Dark, Ice,\n' +
+            '-----Giant-----\n' +
+            'Weak to: Fire, Air, Dark, \n' +
+            'Resistant to: Electric, Water,\n' +
+            '-----Thief-----\n' +
+            'Weak to: Dark, Ice, Earth,\n ' +
+            'Resistant to: Fire, Air,\n' +
+            '-----Vampire-----\n' +
+            'Weak to: Dark, Fire, Ice, \n' +
+            'Resistant to: Electric, Earth,\n' +
+            '-----Mercenary-----\n' +
+            'Weak to: Earth, Air, Water, \n' +
+            'Resistant to: Electric, Fire,\n' +
+            '-----Specter-----\n' +
+            'Weak to: Ice, Electric, Fire,\n ' +
+            'Resistant to: Dark, Earth,\n' +
+            '-----Slime-----\n' +
+            'Weak to: Air, Earth, Electric,\n ' +
+            'Resistant to: Dark, Fire,\n')
+        # fakeEncounter = Encounter('')
+        # fakeEncounter.generateEncounterByLevel(1)
+        # monsters = fakeEncounter.getMonList()
+        # names = monsters[0].getNames()
+        # adjs = monsters[0].getAdjectives()
+
+        # msg = ''
+        # for name in names:
+        #     #print(name)
+        #     monsters[0].setName(name)
+        #     msg = '-----' + name + '-----\nWeak to: '
+        #     monsters[0].giveElement()
+        #     monsters[0].giveWeaknesses()
+        #     monsters[0].giveStrengths()
+        #     weaknesses = monsters[0].getWeaknesses()
+        #     strengths = monsters[0].getStrengths()
+        #     for wk in weaknesses:
+        #         msg = msg + wk + ', '
+        #     msg = msg + '\nResistant to: '
+        #     for st in strengths:
+        #         msg = msg + st + ', '
+        #     msg = msg + '\n'
+        await channel.send(msg)
 
     # Allows the user to get info on themselves or another user by mentioning them.
     elif message.content.startswith('!info'):
@@ -292,7 +386,13 @@ async def on_message(message):
         if not userInfo.getID() == '':
             msg = ('User {} is a level '.format(myMention) + str(userInfo.getLevel()) + ' ' + 
             userInfo.getClass() + ' with ' + str(userInfo.getCurrentHp()) + ' current health, ' + 
-            str(userInfo.getExp()) + ' total experience, and ' + str(userInfo.getGold()) + ' gold.')
+            str(userInfo.getExp()) + ' total experience, and ' + str(userInfo.getGold()) + ' gold.\n')
+            userMoves = userInfo.getMoveset()
+            msg = msg + '---MOVES---\n'
+            index = 1
+            for move in userMoves:
+                msg = msg + str(index) + ') ' + move.getName() + ': ' + str(move.getDamage()) + ' ' + move.getElement() + ' Damage\n'
+                index = index + 1
             await message.channel.send(msg)
         else:
             await message.channel.send("User info could not be found.")

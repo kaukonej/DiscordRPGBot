@@ -17,6 +17,9 @@ class Encounter:
         self.encounterDefMod = 0
         self.encounterLuckMod = 0
 
+    def getMonList(self):
+        return self.monList
+
     def generateEncounterByLevel(self, inputLevel):
         # Generate monster based on level typed in by user (can generate encounter of any level, essentially)
         # Make trash mobs worth 2 pt, normal mobs worth 4, and boss/elite mobs worth 6 or 12?
@@ -51,6 +54,13 @@ class Encounter:
                 #print('Encounter complete')
                 self.monList.append(mon)
 
+    def getAliveMons(self):
+        aliveList = []
+        for mon in self.monList:
+            if mon.getCurrentHp() > 0:
+                aliveList.append(mon)
+        return aliveList
+
     def setOwner(self, userID):
         # set user this encounter is bound to
         self.encounterOwner == userID
@@ -58,13 +68,23 @@ class Encounter:
     def getOwner(self):
         return self.encounterOwner
 
-    def damageMonster(self, targetNumber, damageNumber):
+    def damageMonster(self, targetNumber, damageNumber, move):
         # damage a set monster a set amount
         # print ('Before loop')
         # for mon in self.monList:
         #     print(mon.getName())
         # print('After loop')
-        self.monList[targetNumber].takeDamage(damageNumber)
+        monToHit = self.monList[targetNumber]
+        modifier = 1.0
+        for weakness in monToHit.getWeaknesses():
+            if weakness == move.getElement():
+                modifier = modifier * 2.0
+        for strength in monToHit.getStrengths():
+            if strength == move.getElement():
+                modifier = modifier / 2.0
+        dmgToDo = int(damageNumber * modifier)
+        monToHit.takeDamage(dmgToDo)
+        return [dmgToDo, modifier]
 
     def getMonName(self, target):
         return self.monList[target].getName()
@@ -104,12 +124,12 @@ class Encounter:
                 monsLeft = monsLeft + 1
         return monsLeft
 
-    def calcTurnDamage(self):
-        totalDamage = 0
+    def getEnemyMoves(self):
+        enemyMoves = []
         for mon in self.monList:
             if (mon.getCurrentHp() > 0):
-                totalDamage = totalDamage + mon.calcDamage()
-        return totalDamage
+                enemyMoves.append(mon.returnMove())
+        return enemyMoves
 
     def calcMonsterAttack(self, monsterIndex):
         # Calculate a monster's attack and return that value
