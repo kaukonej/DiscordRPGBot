@@ -16,7 +16,7 @@ class Monster:
         # Fortune = Luck. Increases by 1's. Max 10.
         self.fortune = 1
 
-        #TODO Add elemental weaknesses/strengths?
+        # Keeps track of elements a monster is weak/strong to, as well as what element they are/attack with.
         self.element = ''
         self.weaknesses = []
         self.strengths = []
@@ -36,13 +36,22 @@ class Monster:
     def setAdj(self, adj):
         self.adjective = adj
 
+    '''
+    # Used to calculate what level a monster is.
+    '''
     def getLevel(self):
         return int(((self.vitality/10) + self.strength + self.resolve + self.fortune) - 6)
 
+    '''
+    # Randomly assigns a monster a name (determines defensive affinities) and adjective (determines offensive element)
+    '''
     def giveName(self):
         self.monName = self.possibleNames[random.randint(0, len(self.possibleNames) - 1)]
         self.adjective = self.possibleAdjectives[random.randint(0, len(self.possibleAdjectives) - 1)]
 
+    '''
+    # Gives a monster an element, randomly, based on their adjective.
+    '''
     def giveElement(self):
         self.element == None
         #print('Give element')
@@ -67,15 +76,15 @@ class Monster:
     def getElement(self):
         return self.element
 
+    '''
+    # Gives monster 3 weaknesses, based on their name/race.
+    '''
     def giveWeaknesses(self):
         self.weaknesses = []
         randomModifier = 0
         while len(self.weaknesses) < 3:
-            #print('Give weakness ' + str(len(self.weaknesses) + 1))
             random.seed(self.getNameSeed() + randomModifier)
             ranNum = random.randint(1, 7)
-            #ranNum = (self.getNameSeed() % 7) + 1 + randomModifier
-            #print('Random number generated: ' + str(ranNum))
             weakness = ''
             if (ranNum == 1):
                 weakness = ('Fire')
@@ -93,30 +102,27 @@ class Monster:
                 weakness = ('Air')
 
             alreadyHaveWeakness = False
+            # Don't add the same weakness twice!
             for wk in self.weaknesses:
-                #print('Does ' + weakness + ' = ' + wk + '? If so, don\'t add it.')
                 if weakness == wk:
                     alreadyHaveWeakness = True
-                    #print(str(alreadyHaveWeakness) + ' -- IF THIS PRINTS, SHOULD BE TRUE/NOT ADD')
             if not (alreadyHaveWeakness):
-                #print ('APPENDED using random number ' + str(ranNum))
-                #print('ADDED ' + weakness)
                 self.weaknesses.append(weakness)
             randomModifier = randomModifier + 1
 
     def getWeaknesses(self):
         return self.weaknesses
 
+    '''
+    # Gives a monster 2 strengths, based on their name/race, which are not already weaknesses.
+    '''
     def giveStrengths(self):
         self.strengths = []
         randomModifier = 0
         while len(self.strengths) < 2:
-            #print('Give strength ' + str(len(self.strengths)))
             stren = ''
             random.seed(self.getNameSeed() + randomModifier)
             ranNum = random.randint(1, 7)
-            #ranNum = (self.getNameSeed() % 7) + 1 + randomModifier
-            #print(ranNum)
             if (ranNum == 1):
                 stren = ('Fire')
             elif (ranNum == 2):
@@ -133,6 +139,7 @@ class Monster:
                 stren =('Air')
             
             alreadyHaveStr = False
+            # Make sure it isn't already a strength or weakness before adding it!
             for wk in self.weaknesses:
                 if stren == wk:
                     alreadyHaveStr = True
@@ -143,10 +150,12 @@ class Monster:
                 self.strengths.append(stren)
             randomModifier = randomModifier + 1
 
-
     def getStrengths(self):
         return self.strengths
 
+    '''
+    # Randomly assigns stats to a monster based on a total number of points passed in.
+    '''
     def generateMonster(self, totalPoints):
         # levels the monster a set number of points up
         while totalPoints > 0:
@@ -167,6 +176,9 @@ class Monster:
         self.giveWeaknesses()
         self.giveStrengths()
 
+    '''
+    # Take damage based on both the passed in damage number, as well as the monster's defense.
+    '''
     def takeDamage(self, damageDone):
         DEFENSE_MODIFIER = 5
         totalDamage = (damageDone - (self.resolve * DEFENSE_MODIFIER))
@@ -178,8 +190,10 @@ class Monster:
             self.currentHp = 0
         return damageDone
 
+    '''
+    # Returns the element and power that this monster attacks with.
+    '''
     def returnMove(self):
-        # For now, will just return strength. We can make multiple moves if we want to be fancy and use a random num gen
         return Move('', self.strength * random.randint(2,5), self.element, 0)
         
     def getCurrentHp(self):
@@ -191,15 +205,18 @@ class Monster:
     def getName(self):
         return self.adjective + ' ' + self.monName
 
+    '''
+    # Get a seed based on this monster's name, used for elemental weaknesses/strengths.
+    '''
     def getNameSeed(self):
         seed = 0
         for letter in self.monName:
-            #print('letter: ' + letter + ', ord: ' + str(ord(letter)))
             seed = seed + ord(letter)
-            #print('seed: ' + str(seed))
-        #print('FINAL SEED: ' + str(seed))
         return seed
 
+    '''
+    # Get a seed based on this monster's adjective, used for it's offensive element.
+    '''
     def getElementSeed(self):
         seed = 0
         for letter in self.adjective:

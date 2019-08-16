@@ -4,37 +4,26 @@ import math
 
 class Encounter:
     def __init__(self, owner):
-        # Unsure how we want to do combat exactly, but was thinking we would generate encounters that players then interact with
-        # each player can have 1 running encounter essentially, and we'll keep track of all encounters in RPGBot
-        # This also allows for multiple people to use the bot at the same time (which is important)
         self.encounterOwner = owner
 
         # List of monsters in the encounter
         self.monList = []
 
-        # 0 = no change, 1 = +1 to player's stats for this encoutner (for buffs/debuffs, etc)
-        self.encounterAtkMod = 0
-        self.encounterDefMod = 0
-        self.encounterLuckMod = 0
-
+    '''
+    # Returns a list of all the monsters generated for this encounter.
+    '''
     def getMonList(self):
         return self.monList
 
+    '''
+    # Generate monsters for encounter based on user's level.
+    '''
     def generateEncounterByLevel(self, inputLevel):
-        # Generate monster based on level typed in by user (can generate encounter of any level, essentially)
-        # Make trash mobs worth 2 pt, normal mobs worth 4, and boss/elite mobs worth 6 or 12?
-        # max points to gen monsters then is level 20 + 4 = 24, very easily divisible by multiple numbers (1, 2, 3, 4, 6, 8, 12)
-        # basically, you get both MORE monsters as you level, as well as HARDER monsters as you level
         totalPoints = inputLevel + 4
         while totalPoints > 1:
             monsterType = random.randint(1,3)
-
-            # Generate monsters based on points allocated based on either the level inputted, or the total number of points
-            # allocated to the user which was provided. (ex. Level 1 player has 11 points allocated, Level 20 has 30)
             invalidMonType = False
             mon = Monster()
-            #print('montype: ' + str(monsterType))
-            #print ('total points: ' + str(totalPoints))
             if monsterType == 1:
                 # 4 points weaker than user
                 mon.generateMonster(inputLevel + 2)
@@ -49,11 +38,13 @@ class Encounter:
                 totalPoints = totalPoints - 10
             else:
                 invalidMonType = True
-            #print ('total points: ' + str(totalPoints))
+            # Once the monster is made, add it to the list.
             if (not invalidMonType):
-                #print('Encounter complete')
                 self.monList.append(mon)
 
+    '''
+    # Returns a list of monsters with more than 0 health.
+    '''
     def getAliveMons(self):
         aliveList = []
         for mon in self.monList:
@@ -61,6 +52,9 @@ class Encounter:
                 aliveList.append(mon)
         return aliveList
 
+    '''
+    # Sets the owner of this encounter to the passed in ID.
+    '''
     def setOwner(self, userID):
         # set user this encounter is bound to
         self.encounterOwner == userID
@@ -68,12 +62,10 @@ class Encounter:
     def getOwner(self):
         return self.encounterOwner
 
+    '''
+    # Damages a monster a certain amount, based on the move type and the monster's elemental affinities.
+    '''
     def damageMonster(self, targetNumber, damageNumber, move):
-        # damage a set monster a set amount
-        # print ('Before loop')
-        # for mon in self.monList:
-        #     print(mon.getName())
-        # print('After loop')
         monToHit = self.monList[targetNumber]
         modifier = 1.0
         for weakness in monToHit.getWeaknesses():
@@ -86,9 +78,15 @@ class Encounter:
         monToHit.takeDamage(dmgToDo)
         return [dmgToDo, modifier]
 
+    '''
+    # Returns the name of the monster at the specified index.
+    '''
     def getMonName(self, target):
         return self.monList[target].getName()
 
+    '''
+    # Checks if all the monsters in an encounter are dead.
+    '''
     def isEncounterOver(self):
         isOver = True
         for mon in self.monList:
@@ -96,9 +94,15 @@ class Encounter:
                 isOver = False
         return isOver
 
+    '''
+    # Gets how much HP a specified monster still has.
+    '''
     def getTargetHp(self, target):
         return self.monList[target].getCurrentHp()
 
+    '''
+    # Calculates how much EXP is rewarded if the encounter is beaten.
+    '''
     def calcExp(self):
         totalExp = 0
         for mon in self.monList:
@@ -109,6 +113,9 @@ class Encounter:
             totalExp = (level * 3) + (random.randint(1,level) * modifier)
         return totalExp
 
+    '''
+    # Calculates how much gold is rewarded if the encounter is beaten.
+    '''
     def calcGold(self):
         totalGold = 0
         for mon in self.monList:
@@ -117,6 +124,9 @@ class Encounter:
         totalGold = totalGold * modifier
         return totalGold
 
+    '''
+    # Returns how many monsters are still alive in an encounter.
+    '''
     def monsLeft(self):
         monsLeft = 0
         for mon in self.monList:
@@ -124,6 +134,9 @@ class Encounter:
                 monsLeft = monsLeft + 1
         return monsLeft
 
+    '''
+    # Returns a list of attacks from any monsters who are still alive.
+    '''
     def getEnemyMoves(self):
         enemyMoves = []
         for mon in self.monList:
@@ -131,10 +144,15 @@ class Encounter:
                 enemyMoves.append(mon.returnMove())
         return enemyMoves
 
+    '''
+    # Calculate a monster's attack and return that value
+    '''
     def calcMonsterAttack(self, monsterIndex):
-        # Calculate a monster's attack and return that value
         return self.monList[monsterIndex].calcDamage()
 
+    '''
+    # Returns a string regarding monsters and their health for the bot to use.
+    '''
     def toString(self):
         # e.x. Below will return "1. MONSTER NAME: [|||||||     ] (7/12)"
         monIndex = 1
